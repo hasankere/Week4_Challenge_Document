@@ -831,5 +831,412 @@ try:
 except Exception as e:
     logging.error(f"An error occurred: {e}")
     print(f"An error occurred. Check the log file for details.")
+import pandas as pd
+import os
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
+
+# Set the path to your data directory
+data = r"C:\Users\Hasan\Desktop\week4"
+
+# Define file paths
+store_file = os.path.join(data, "store.csv")
+train_file = os.path.join(data, "train.csv")
+
+# Load datasets
+store_data = pd.read_csv(store_file)
+train_data = pd.read_csv(train_file, parse_dates=['Date'])
+
+# Merge train and store data
+df = train_data.merge(store_data, how='left', on='Store')
+
+# 1. Extract datetime features
+df['DayOfWeek'] = df['Date'].dt.dayofweek
+df['IsWeekend'] = df['DayOfWeek'].apply(lambda x: 1 if x >= 5 else 0)
+
+# Example holidays (customize as needed)
+holidays = pd.to_datetime(['2023-12-25', '2024-01-01'])
+
+df['DaysToNextHoliday'] = df['Date'].apply(lambda x: min([(h - x).days for h in holidays if h >= x], default=0))
+df['DaysSinceLastHoliday'] = df['Date'].apply(lambda x: min([(x - h).days for h in holidays if h <= x], default=0))
+
+# 2. Encode categorical features
+df = pd.get_dummies(df, columns=['StoreType', 'Assortment'], drop_first=True)
+
+# Encode PromoInterval
+df['PromoInterval'] = df['PromoInterval'].fillna('None')
+promo_interval_mapping = {'None': 0, 'Jan,Apr,Jul,Oct': 1, 'Feb,May,Aug,Nov': 2, 'Mar,Jun,Sept,Dec': 3}
+df['PromoInterval'] = df['PromoInterval'].map(promo_interval_mapping)
+
+# 3. Handle missing values
+df['Promo2SinceWeek'] = df['Promo2SinceWeek'].fillna(0).astype(int)
+df['Promo2SinceYear'] = df['Promo2SinceYear'].fillna(0).astype(int)
+
+# 4. Create lag and rolling features
+df['SalesLag1'] = df['Sales'].shift(1)
+df['SalesRollingMean'] = df['Sales'].rolling(window=7).mean()
+
+# 5. Normalize CompetitionDistance
+scaler = MinMaxScaler()
+df['CompetitionDistance'] = df['CompetitionDistance'].fillna(df['CompetitionDistance'].max())
+df['CompetitionDistanceScaled'] = scaler.fit_transform(df[['CompetitionDistance']])
+
+# 6. Prepare features and target
+X = df.drop(['Sales', 'Date'], axis=1)
+y = df['Sales']
+
+# 7. Train-test split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Display a sample of the preprocessed data
+print(df.head())
+
+# 8. Save the processed data
+output_file = os.path.join(data, "preprocessed_rossmann_data.csv")
+df.to_csv(output_file, index=False)
+print(f"Preprocessed data saved to: {output_file}")
+import pandas as pd
+import os
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.model_selection import train_test_split
+
+# Set the path to your data directory
+data = r"C:\Users\Hasan\Desktop\week4"
+
+# Define file paths
+store_file = os.path.join(data, "store.csv")
+train_file = os.path.join(data, "train.csv")
+
+# Load datasets
+store_data = pd.read_csv(store_file)
+train_data = pd.read_csv(train_file, parse_dates=['Date'])
+
+# Merge train and store data
+df = train_data.merge(store_data, how='left', on='Store')
+
+# 1. Extract datetime features
+df['DayOfWeek'] = df['Date'].dt.dayofweek
+df['IsWeekend'] = df['DayOfWeek'].apply(lambda x: 1 if x >= 5 else 0)
+
+# Extract additional date-based features
+df['Day'] = df['Date'].dt.day
+df['Month'] = df['Date'].dt.month
+df['Year'] = df['Date'].dt.year
+df['IsMonthStart'] = df['Date'].dt.is_month_start.astype(int)
+df['IsMonthEnd'] = df['Date'].dt.is_month_end.astype(int)
+
+# Feature: Beginning, Mid, and End of Month
+df['MonthPeriod'] = pd.cut(df['Day'], bins=[0, 10, 20, 31], labels=['Beginning', 'Mid', 'End'])
+
+# Encode MonthPeriod as numerical for modeling
+month_period_mapping = {'Beginning': 0, 'Mid': 1, 'End': 2}
+df['MonthPeriod'] = df['MonthPeriod'].map(month_period_mapping)
+
+# Example holidays (customize as needed)
+holidays = pd.to_datetime(['2023-12-25', '2024-01-01'])
+
+df['DaysToNextHoliday'] = df['Date'].apply(lambda x: min([(h - x).days for h in holidays if h >= x], default=0))
+df['DaysSinceLastHoliday'] = df['Date'].apply(lambda x: min([(x - h).days for h in holidays if h <= x], default=0))
+
+# 2. Encode categorical features
+df = pd.get_dummies(df, columns=['StoreType', 'Assortment'], drop_first=True)
+state_holiday_mapping = {'0': 0, 'a': 1, 'b': 2, 'c': 3}
+df['StateHoliday'] = df['StateHoliday'].map(state_holiday_mapping).fillna(0).astype(int)
+
+# Encode PromoInterval
+df['PromoInterval'] = df['PromoInterval'].fillna('None')
+promo_interval_mapping = {'None': 0, 'Jan,Apr,Jul,Oct': 1, 'Feb,May,Aug,Nov': 2, 'Mar,Jun,Sept,Dec': 3}
+df['PromoInterval'] = df['PromoInterval'].map(promo_interval_mapping)
+
+# 3. Handle missing values
+df['Promo2SinceWeek'] = df['Promo2SinceWeek'].fillna(0).astype(int)
+df['Promo2SinceYear'] = df['Promo2SinceYear'].fillna(0).astype(int)
+
+# 4. Create lag and rolling features
+df['SalesLag1'] = df['Sales'].shift(1)
+df['SalesRollingMean'] = df['Sales'].rolling(window=7).mean()
+
+# 5. Normalize CompetitionDistance
+df['CompetitionDistance'] = df['CompetitionDistance'].fillna(df['CompetitionDistance'].max())
+
+# 6. Prepare features and target
+X = df.drop(['Sales', 'Date'], axis=1)
+y = df['Sales']
+
+# 7. Scale the data using StandardScaler
+scaler = StandardScaler()
+X_scaled = pd.DataFrame(scaler.fit_transform(X), columns=X.columns)
+
+# 8. Train-test split
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+
+# Display a sample of the preprocessed data
+print(X_scaled.head())
+
+# 9. Save the processed data
+output_file = os.path.join(data, "preprocessed_rossmann_data.csv")
+X_scaled['Sales'] = y  # Add target back for saving the final dataset
+X_scaled.to_csv(output_file, index=False)
+print(f"Preprocessed data saved to: {output_file}")
+# Extract date features
+# Extract date features
+# Extract date features
+# Identify numeric and categorical columns
+numeric_features = ['CompetitionDistance', 'CompetitionOpenSinceMonth', 
+                    'CompetitionOpenSinceYear', 'Promo2SinceWeek', 'Promo2SinceYear', 
+                    'Year', 'Month', 'Day', 'Weekday']
+categorical_features = ['StoreType', 'Assortment', 'StateHoliday', 'PromoInterval']
+
+# Preprocessing for numeric data
+numeric_transformer = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='median')),
+    ('scaler', StandardScaler())
+])
+
+# Preprocessing for categorical data
+categorical_transformer = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='constant', fill_value='Unknown')),
+    ('onehot', OneHotEncoder(handle_unknown='ignore'))
+])
+
+# Combine preprocessors in a ColumnTransformer
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', numeric_transformer, numeric_features),
+        ('cat', categorical_transformer, categorical_features)
+    ]
+)
+
+# Define the full pipeline
+pipeline = Pipeline(steps=[
+    ('preprocessor', preprocessor),
+    ('regressor', RandomForestRegressor(random_state=42, n_estimators=100))
+])
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+for col in df.columns:
+    if df[col].dtype == 'object':
+        unique_types = set(type(val) for val in df[col].dropna())
+        if len(unique_types) > 1:
+            print(f"Column '{col}' has mixed types: {unique_types}")
+for col in df.columns:
+    if df[col].dtype == 'object':
+        unique_types = set(type(val) for val in df[col].dropna())
+        if len(unique_types) > 1:
+            print(f"Column '{col}' has mixed types: {unique_types}")
+for col in df.columns:
+    if df[col].dtype == 'object':
+        unique_types = set(type(val) for val in df[col].dropna())
+        if len(unique_types) > 1:
+            print(f"Column '{col}' has mixed types: {unique_types}")
+pipeline.fit(X_train, y_train)
+y_pred = pipeline.predict(X_test)
+from sklearn.metrics import mean_squared_error
+import numpy as np
+
+# Calculate MSE and then take the square root to get RMSE
+mse = mean_squared_error(y_test, y_pred)
+rmse = np.sqrt(mse)
+
+# Calculate R-squared
+from sklearn.metrics import r2_score
+r2 = r2_score(y_test, y_pred)
+
+print(f"RMSE: {rmse}")
+print(f"R2: {r2}")
+
+# Check if there are datetime columns
+datetime_columns = X_train.select_dtypes(include=['datetime64']).columns
+print("Datetime columns:", datetime_columns)
+
+# Convert datetime columns to numeric features
+for col in datetime_columns:
+    X_train[col + '_year'] = X_train[col].dt.year
+    X_train[col + '_month'] = X_train[col].dt.month
+    X_train[col + '_day'] = X_train[col].dt.day
+    X_train[col + '_weekday'] = X_train[col].dt.weekday
+
+# Drop original datetime columns
+X_train = X_train.drop(columns=datetime_columns)
+# Repeat transformation for X_test
+for col in datetime_columns:
+    X_test[col + '_year'] = X_test[col].dt.year
+    X_test[col + '_month'] = X_test[col].dt.month
+    X_test[col + '_day'] = X_test[col].dt.day
+    X_test[col + '_weekday'] = X_test[col].dt.weekday
+
+# Drop original datetime columns in X_test
+X_test = X_test.drop(columns=datetime_columns)
+from sklearn.ensemble import RandomForestRegressor
+
+# Assuming X_train is your prepared training data and y_train is your target variable
+model = RandomForestRegressor(n_estimators=100)
+model.fit(X_train, y_train)
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Extract feature importances
+feature_importances = model.feature_importances_
+feature_names = X_train.columns  # If X_train is a pandas DataFrame
+
+# Sort the features by importance
+sorted_idx = np.argsort(feature_importances)
+
+# Plot
+plt.figure(figsize=(10, 6))
+plt.barh(feature_names[sorted_idx], feature_importances[sorted_idx], align='center')
+plt.xlabel('Feature Importance')
+plt.title('Feature Importance from Random Forest')
+plt.show()
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.ensemble import RandomForestRegressor
+from joblib import dump
+import numpy as np
+from sklearn.model_selection import train_test_split
+
+# Assume X_train and y_train are already prepared
+
+# Sample a subset of data for quicker iteration
+X_sample, _, y_sample, _ = train_test_split(X_train, y_train, test_size=0.8, random_state=42)
+
+# Define the model
+model = RandomForestRegressor(random_state=42)
+
+# Define a reduced hyperparameter grid
+param_distributions = {
+    'n_estimators': [50],               # Fixed smaller number of trees
+    'max_depth': [10],                  # Fixed depth for faster training
+    'min_samples_split': [2, 5],        # Limited options
+    'min_samples_leaf': [1, 2],         
+    'max_features': ['sqrt']            # Avoid 'auto' and limit options
+}
+
+# Use RandomizedSearchCV for quick hyperparameter tuning
+random_search = RandomizedSearchCV(
+    estimator=model, 
+    param_distributions=param_distributions, 
+    n_iter=5,                           # Fewer random combinations
+    cv=2,                               # Reduced cross-validation folds
+    scoring='neg_mean_squared_error',    # Evaluation metric
+    verbose=1, 
+    random_state=42, 
+    n_jobs=2                             # Limit parallel jobs
+)
+
+# Fit the model on the subset of data
+random_search.fit(X_sample, y_sample)
+
+# Output the best parameters and score
+print("Best parameters:", random_search.best_params_)
+print("Best score:", -random_search.best_score_)
+
+# Save the best model
+dump(random_search.best_estimator_, 'optimized_random_forest_model_quick.pkl')
+print("Model saved as optimized_random_forest_model_quick.pkl")
+#for Serialization with Timestamp
+from datetime import datetime
+# Generate a timestamp for filename
+timestamp = datetime.now().strftime('%d-%m-%Y-%H-%M-%S-%f')[:-3]
+filename = f"optimized_random_forest_model_{timestamp}.pkl"
+
+# Save the best model with a timestamp
+dump(random_search.best_estimator_, filename)
+print(f"Model saved as {filename}")
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_squared_error
+from statsmodels.tsa.stattools import adfuller
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+import matplotlib.pyplot as plt
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
+import logging
+from datetime import datetime
+import os
+# Set up logging
+logging.basicConfig(
+    filename=f'rossmann_model_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logging.info("Started Rossmann LSTM Sales Prediction Process")
+
+# Define dataset directory and file paths
+data = r"C:\Users\Hasan\Desktop\week4"
+train_file = os.path.join(data, "train.csv")
+store_file = os.path.join(data, "store.csv")
+
+logging.info(f"Data directory: {data}")
+logging.info(f"Train file: {train_file}")
+logging.info(f"Store file: {store_file}")
+import pandas as pd
+import logging
+import matplotlib.pyplot as plt
+from statsmodels.tsa.stattools import adfuller
+
+# Initialize logging
+logging.basicConfig(level=logging.INFO)
+
+try:
+    # Load train data
+    train_data = pd.read_csv(train_file, parse_dates=['Date'])
+    
+    # Convert 'StateHoliday' to numeric, assuming 0 for non-holiday and 1 for holiday
+    train_data['StateHoliday'] = train_data['StateHoliday'].apply(lambda x: 1 if x != '0' else 0)
+    
+    # Group by 'Date' and sum the numeric columns, excluding 'StateHoliday'
+    train_data = train_data.groupby('Date').sum().reset_index()
+
+    logging.info("Train data loaded and processed successfully.")
+except Exception as e:
+    logging.error(f"Failed to load train data: {e}")
+    raise
+
+# Plot sales
+plt.figure(figsize=(12, 6))
+plt.plot(train_data['Date'], train_data['Sales'])
+plt.title('Sales Over Time')
+plt.xlabel('Date')
+plt.ylabel('Sales')
+plt.show()
+
+# Check stationarity
+result = adfuller(train_data['Sales'])
+logging.info(f"ADF Statistic: {result[0]}, p-value: {result[1]}")
+if result[1] < 0.05:
+    logging.info("Data is stationary.")
+else:
+    logging.info("Data is not stationary. Applying differencing.")
+    train_data['Sales'] = train_data['Sales'].diff().fillna(0)
+import numpy as np
+def create_supervised_data(series, window_size):
+    X, y = [], []
+    for i in range(len(series) - window_size):
+        X.append(series[i:i + window_size])
+        y.append(series[i + window_size])
+    return np.array(X), np.array(y)
+
+window_size = 30
+X, y = create_supervised_data(train_data['Sales'].values, window_size)
+scaler = MinMaxScaler(feature_range=(-1, 1))
+X_scaled = scaler.fit_transform(X).reshape((X.shape[0], X.shape[1], 1))
+y_scaled = scaler.fit_transform(y.reshape(-1, 1))
+
+logging.info("Data transformed into supervised format.")
+
+#Build and Train LSTM Model
+model = Sequential([
+    LSTM(50, activation='relu', input_shape=(window_size, 1)),
+    Dense(1)
+])
+
+model.compile(optimizer='adam', loss='mean_squared_error')
+logging.info("LSTM model compiled.")
+
+# Train the model
+try:
+    model.fit(X_scaled, y_scaled, epochs=20, batch_size=32)
+    logging.info("Model training completed.")
+except Exception as e:
+    logging.error(f"Model training failed: {e}")
+    raise
 
          
